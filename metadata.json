@@ -1,0 +1,5 @@
+{
+  "name": "PowerSight Accuracy Analyzer",
+  "description": "A visualization system for power station accuracy calculations. Supports regional logic switching (Shanxi, Northwest, etc.) and manual parameter adjustment.",
+  "requestFramePermissions": []
+}
