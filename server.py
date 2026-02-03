@@ -7,7 +7,7 @@ from typing import List
 app = FastAPI()
 
 # 1. 配置 CORS，允许前端 (React) 访问后端
-# 在生产环境中，请将 allow_origins 设置为您的前端域名/IP
+# 允许所有来源，解决 Failed to fetch 问题
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  
@@ -20,6 +20,13 @@ app.add_middleware(
 # 您可以根据需要放宽限制，或者只允许访问特定目录
 ALLOWED_BASE_PATH = "/public/home/wangyg/project/Ushort_forcast/data"
 
+@app.get("/")
+async def root():
+    """
+    健康检查接口
+    """
+    return {"status": "ok", "message": "PowerSight Backend is running", "endpoints": ["/api/files", "/api/file-content"]}
+
 @app.get("/api/files", response_model=List[str])
 async def list_files(path: str = Query(..., description="Target directory path")):
     """
@@ -27,7 +34,7 @@ async def list_files(path: str = Query(..., description="Target directory path")
     """
     # 简单的安全检查：确保路径存在
     if not os.path.exists(path):
-        # 如果目录不存在，返回空列表或报错，这里选择返回空列表
+        # 如果目录不存在，返回空列表
         return []
 
     try:
@@ -55,7 +62,7 @@ async def get_file_content(path: str, filename: str):
         # 读取文件内容 (假设为 UTF-8 编码)
         with open(full_path, 'r', encoding='utf-8') as f:
             content = f.read()
-        return content # 直接返回文本，Content-Type 默认为 application/json，前端需作为 text 处理或后端强制 text/plain
+        return content 
     except UnicodeDecodeError:
         # 尝试 GBK 编码 (以防中文乱码)
         try:

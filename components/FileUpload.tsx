@@ -1,29 +1,28 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Upload, AlertCircle, Server, Folder, FileText, RefreshCw, Check, HardDrive } from 'lucide-react';
+import { Upload, AlertCircle, Server, Folder, FileText, RefreshCw, Check, HardDrive, Settings, Link as LinkIcon, ToggleLeft, ToggleRight } from 'lucide-react';
 import { RawRow } from '../types';
 
 interface FileUploadProps {
   onDataLoaded: (data: RawRow[], headers: string[]) => void;
 }
 
-// --- API Configuration ---
-const API_CONFIG = {
-    // 设置为 false 以使用真实后端
-    useMock: false, 
-    // 后端地址: 请将 localhost 替换为您服务器的真实 IP (例如: http://192.168.1.100:8000/api)
-    // 如果前端和后端在同一台机器且通过 localhost 访问，则保持如下
-    baseUrl: 'http://localhost:8000/api', 
-    defaultPath: '/public/home/wangyg/project/Ushort_forcast/data'
-};
-
 const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
   const [mode, setMode] = useState<'local' | 'server'>('local');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // --- Connection State ---
+  // Smart default: Assume backend is on the same host as frontend, port 8000
+  const [apiBaseUrl, setApiBaseUrl] = useState<string>(() => {
+      const hostname = window.location.hostname;
+      return `http://${hostname}:8000/api`;
+  });
+  const [serverPath, setServerPath] = useState<string>('/public/home/wangyg/project/Ushort_forcast/data');
+  const [useMock, setUseMock] = useState<boolean>(false);
+  const [showConfig, setShowConfig] = useState<boolean>(false);
+
+  // --- Data State ---
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  // --- Server Mode State ---
-  const [serverPath, setServerPath] = useState(API_CONFIG.defaultPath);
   const [fileList, setFileList] = useState<string[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -34,7 +33,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
     setError(null);
     setFileList([]);
 
-    if (API_CONFIG.useMock) {
+    if (useMock) {
         // --- Mock Implementation ---
         setTimeout(() => {
             setFileList([
@@ -49,8 +48,11 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
         // --- Real API Implementation ---
         try {
             // Expected Backend: GET /api/files?path=...
-            const response = await fetch(`${API_CONFIG.baseUrl}/files?path=${encodeURIComponent(serverPath)}`);
-            if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+            const response = await fetch(`${apiBaseUrl}/files?path=${encodeURIComponent(serverPath)}`);
+            if (!response.ok) {
+                 if (response.status === 404) throw new Error("API 路径未找到 (404)。请检查后端代码。");
+                 throw new Error(`API Error: ${response.statusText}`);
+            }
             
             const list = await response.json();
             if (Array.isArray(list)) {
@@ -60,18 +62,23 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
             }
         } catch (err: any) {
             console.error(err);
-            setError(`无法获取文件列表: ${err.message}. 请确保 server.py 已运行。`);
+            let msg = err.message;
+            if (msg === 'Failed to fetch') {
+                msg = `连接失败: 无法访问 ${apiBaseUrl}。请确认后端服务已启动 (python server.py) 且端口未被防火墙拦截。`;
+            }
+            setError(msg);
         } finally {
             setLoadingList(false);
         }
     }
   };
 
+  // Trigger fetch when mode changes to server, or when config changes (if already in server mode)
   useEffect(() => {
       if (mode === 'server') {
           fetchFileList();
       }
-  }, [mode]);
+  }, [mode, useMock]); // Removed apiBaseUrl/serverPath from deps to avoid auto-refetch on every keystroke, user must click refresh
 
   // --- Fetch File Content ---
   const handleServerFileLoad = async (filename: string) => {
@@ -79,7 +86,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
       setLoading(true);
       setError(null);
 
-      if (API_CONFIG.useMock) {
+      if (useMock) {
           // --- Mock Data Generation ---
           try {
             await new Promise(r => setTimeout(r, 800)); 
@@ -107,19 +114,16 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
       } else {
           // --- Real API Call ---
           try {
-              // Expected Backend: GET /api/file-content?path=...&filename=...
-              // 注意: 后端返回的是纯文本内容，而不是 JSON
-              const response = await fetch(`${API_CONFIG.baseUrl}/file-content?path=${encodeURIComponent(serverPath)}&filename=${encodeURIComponent(filename)}`);
+              const response = await fetch(`${apiBaseUrl}/file-content?path=${encodeURIComponent(serverPath)}&filename=${encodeURIComponent(filename)}`);
               
               if (!response.ok) {
                   const errorJson = await response.json().catch(() => ({}));
                   throw new Error(errorJson.detail || response.statusText);
               }
               
-              // 关键: 后端有些时候可能返回 JSON string，有些时候是 Text，这里我们统一按 text 读取
               let csvText = await response.text();
               
-              // 如果后端不小心把内容包在 JSON 字符串里 (例如 FastAPI 默认行为)，尝试解析
+              // Handle potential double-encoding
               if (csvText.startsWith('"') && csvText.endsWith('"')) {
                  try { csvText = JSON.parse(csvText); } catch(e) {}
               }
@@ -166,7 +170,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
 
     const headers = lines[0].split(',').map(h => h.trim());
     
-    // Find time column automatically to sort, but keep others dynamic
+    // Auto-detect time column
     const timeIdx = headers.findIndex(h => {
         const lower = h.toLowerCase();
         return lower.includes('time') || lower.includes('timestamp') || lower.includes('时间');
@@ -187,14 +191,13 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
         timestamp: 0,
       };
 
-      // Try to parse time
       const timeStr = currentLine[timeIdx];
+      // Robust Date Parsing
       const timestamp = new Date(timeStr.replace(/-/g, '/')).getTime();
       
-      if (isNaN(timestamp)) continue; // Skip invalid time rows
+      if (isNaN(timestamp)) continue;
       row.timestamp = timestamp;
 
-      // Parse all other columns as numbers if possible
       headers.forEach((header, index) => {
         if (index === timeIdx) return;
         const val = parseFloat(currentLine[index]);
@@ -206,9 +209,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
 
     if (result.length === 0) throw new Error("No valid data rows found");
 
-    // Sort by timestamp asc
     result.sort((a, b) => a.timestamp - b.timestamp);
-
     return { data: result, headers };
   };
 
@@ -264,40 +265,105 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
       ) : (
           // Server File View
           <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-              <div className="mb-4">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">当前数据源路径</label>
+              
+              {/* Header with Settings Toggle */}
+              <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center space-x-2">
-                      <div className="flex-1 bg-slate-100 border border-slate-300 rounded px-3 py-2 text-sm font-mono text-slate-600 flex items-center overflow-hidden">
-                          <Folder className="w-4 h-4 mr-2 flex-shrink-0 text-slate-400" />
-                          <input 
-                            type="text" 
-                            value={serverPath} 
-                            onChange={(e) => setServerPath(e.target.value)}
-                            className="bg-transparent w-full focus:outline-none"
-                          />
-                      </div>
-                      <button 
-                        onClick={fetchFileList}
-                        className="p-2 bg-white border border-slate-300 rounded hover:bg-slate-50 text-slate-600 transition"
-                        title="刷新列表"
-                      >
-                          <RefreshCw className={`w-5 h-5 ${loadingList ? 'animate-spin text-blue-500' : ''}`} />
-                      </button>
+                     <h3 className="text-sm font-bold text-slate-700 flex items-center">
+                        <Folder className="w-4 h-4 mr-2 text-blue-500" />
+                        服务器文件浏览
+                     </h3>
+                     {useMock && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">MOCK MODE</span>}
                   </div>
+                  <button 
+                    onClick={() => setShowConfig(!showConfig)}
+                    className={`p-1.5 rounded transition ${showConfig ? 'bg-blue-100 text-blue-600' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+                    title="API 连接设置"
+                  >
+                      <Settings className="w-4 h-4" />
+                  </button>
               </div>
 
-              <div className="border border-slate-200 rounded-md overflow-hidden">
-                  <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 text-xs font-semibold text-slate-500 flex justify-between">
-                      <span>文件名</span>
-                      <span>操作</span>
+              {/* Collapsible Configuration Panel */}
+              {showConfig && (
+                  <div className="mb-6 p-4 bg-slate-50 rounded border border-slate-200 animate-fade-in text-sm space-y-3">
+                      <div>
+                          <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">API 基础地址 (Base URL)</label>
+                          <div className="flex items-center">
+                             <LinkIcon className="w-4 h-4 text-slate-400 mr-2" />
+                             <input 
+                                type="text" 
+                                value={apiBaseUrl} 
+                                onChange={(e) => setApiBaseUrl(e.target.value)}
+                                className="flex-1 border-slate-300 rounded px-2 py-1.5 focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="http://localhost:8000/api"
+                             />
+                          </div>
+                      </div>
+                      <div>
+                          <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">服务器数据目录</label>
+                          <div className="flex items-center">
+                             <Folder className="w-4 h-4 text-slate-400 mr-2" />
+                             <input 
+                                type="text" 
+                                value={serverPath} 
+                                onChange={(e) => setServerPath(e.target.value)}
+                                className="flex-1 border-slate-300 rounded px-2 py-1.5 focus:ring-blue-500 focus:border-blue-500"
+                             />
+                          </div>
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200 mt-2">
+                          <label className="flex items-center cursor-pointer">
+                              <button onClick={() => setUseMock(!useMock)} className="mr-2 focus:outline-none">
+                                  {useMock ? <ToggleRight className="w-8 h-8 text-amber-500" /> : <ToggleLeft className="w-8 h-8 text-slate-300" />}
+                              </button>
+                              <span className="text-slate-600">启用演示模式 (Mock Data)</span>
+                          </label>
+                          <button 
+                            onClick={fetchFileList}
+                            className="bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 transition flex items-center"
+                          >
+                              <RefreshCw className="w-3 h-3 mr-1" /> 更新列表
+                          </button>
+                      </div>
                   </div>
-                  <div className="max-h-60 overflow-y-auto bg-white">
+              )}
+
+              {/* File List */}
+              <div className="border border-slate-200 rounded-md overflow-hidden">
+                  <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 text-xs font-semibold text-slate-500 flex justify-between items-center">
+                      <span>文件列表</span>
+                      {!showConfig && (
+                        <button onClick={fetchFileList} title="刷新" className="text-slate-400 hover:text-blue-600">
+                             <RefreshCw className={`w-3 h-3 ${loadingList ? 'animate-spin' : ''}`} />
+                        </button>
+                      )}
+                  </div>
+                  <div className="max-h-60 overflow-y-auto bg-white min-h-[120px]">
                       {loadingList ? (
-                          <div className="p-8 text-center text-slate-400 text-sm">加载文件列表中...</div>
+                          <div className="flex flex-col items-center justify-center h-32 text-slate-400 text-sm">
+                              <RefreshCw className="w-6 h-6 mb-2 animate-spin text-blue-500" />
+                              正在连接服务器...
+                          </div>
                       ) : error ? (
-                          <div className="p-8 text-center text-red-400 text-sm">{error}</div>
+                          <div className="p-6 text-center">
+                              <div className="inline-flex bg-red-100 p-2 rounded-full mb-3">
+                                  <AlertCircle className="w-6 h-6 text-red-500" />
+                              </div>
+                              <p className="text-red-600 text-sm font-medium mb-1">{error}</p>
+                              <p className="text-xs text-red-400 mb-4">请点击右上角设置图标检查 API 地址，或开启演示模式。</p>
+                              <button 
+                                onClick={() => { setUseMock(true); setShowConfig(true); }}
+                                className="text-xs bg-white border border-red-200 text-red-600 px-3 py-1 rounded hover:bg-red-50 transition"
+                              >
+                                  切换到演示模式
+                              </button>
+                          </div>
                       ) : fileList.length === 0 ? (
-                          <div className="p-8 text-center text-slate-400 text-sm">该目录下未找到 CSV 文件或 API 连接失败</div>
+                          <div className="flex flex-col items-center justify-center h-32 text-slate-400 text-sm">
+                              <Folder className="w-8 h-8 mb-2 text-slate-200" />
+                              <p>目录为空或未找到 CSV 文件</p>
+                          </div>
                       ) : (
                           <ul className="divide-y divide-slate-100">
                               {fileList.map((file) => (
@@ -308,7 +374,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
                                       </div>
                                       {selectedFile === file && loading ? (
                                            <span className="text-xs text-blue-600 flex items-center">
-                                               <RefreshCw className="w-3 h-3 mr-1 animate-spin" /> 加载中
+                                               <RefreshCw className="w-3 h-3 mr-1 animate-spin" /> 读取中
                                            </span>
                                       ) : selectedFile === file ? (
                                            <span className="text-xs text-green-600 flex items-center">
@@ -323,15 +389,21 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
                       )}
                   </div>
               </div>
-              <p className="mt-3 text-xs text-slate-400">
-                  {API_CONFIG.useMock 
-                    ? "* 当前为演示(Mock)模式。"
-                    : `* 正连接至后端: ${API_CONFIG.baseUrl} (请确保 server.py 已运行)`}
-              </p>
+              
+              {!showConfig && !error && (
+                <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+                   <span>
+                      {useMock ? '* 演示模式' : `* 连接至: ${apiBaseUrl}`}
+                   </span>
+                   <span>
+                      路径: {serverPath.length > 20 ? '...' + serverPath.slice(-20) : serverPath}
+                   </span>
+                </div>
+              )}
           </div>
       )}
       
-      {error && !loadingList && (
+      {error && !loadingList && mode === 'local' && (
         <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md flex items-center text-red-700 animate-fade-in">
           <AlertCircle className="w-5 h-5 mr-2" />
           {error}
