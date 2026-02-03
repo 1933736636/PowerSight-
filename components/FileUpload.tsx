@@ -6,7 +6,15 @@ interface FileUploadProps {
   onDataLoaded: (data: RawRow[], headers: string[]) => void;
 }
 
-const DEFAULT_SERVER_PATH = '/public/home/wangyg/project/Ushort_forcast/data';
+// --- API Configuration ---
+const API_CONFIG = {
+    // 设置为 false 以使用真实后端
+    useMock: false, 
+    // 后端地址: 请将 localhost 替换为您服务器的真实 IP (例如: http://192.168.1.100:8000/api)
+    // 如果前端和后端在同一台机器且通过 localhost 访问，则保持如下
+    baseUrl: 'http://localhost:8000/api', 
+    defaultPath: '/public/home/wangyg/project/Ushort_forcast/data'
+};
 
 const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
   const [mode, setMode] = useState<'local' | 'server'>('local');
@@ -15,26 +23,48 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
   const [loading, setLoading] = useState(false);
 
   // --- Server Mode State ---
-  const [serverPath, setServerPath] = useState(DEFAULT_SERVER_PATH);
+  const [serverPath, setServerPath] = useState(API_CONFIG.defaultPath);
   const [fileList, setFileList] = useState<string[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
-  // --- Mock Server Logic (Replace with real API in deployment) ---
-  const fetchFileList = () => {
+  // --- Fetch File List ---
+  const fetchFileList = async () => {
     setLoadingList(true);
     setError(null);
-    // 模拟 API 调用延迟
-    setTimeout(() => {
-        // 这里模拟服务器返回的文件列表
-        setFileList([
-            'station_shanxi_202501.csv',
-            'station_shanxi_202502.csv',
-            'station_northwest_batch_01.csv',
-            'test_data_realtime.csv'
-        ]);
-        setLoadingList(false);
-    }, 600);
+    setFileList([]);
+
+    if (API_CONFIG.useMock) {
+        // --- Mock Implementation ---
+        setTimeout(() => {
+            setFileList([
+                'station_shanxi_202501.csv',
+                'station_shanxi_202502.csv',
+                'station_northwest_batch_01.csv',
+                'test_data_realtime.csv'
+            ]);
+            setLoadingList(false);
+        }, 600);
+    } else {
+        // --- Real API Implementation ---
+        try {
+            // Expected Backend: GET /api/files?path=...
+            const response = await fetch(`${API_CONFIG.baseUrl}/files?path=${encodeURIComponent(serverPath)}`);
+            if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+            
+            const list = await response.json();
+            if (Array.isArray(list)) {
+                setFileList(list);
+            } else {
+                throw new Error("API 返回格式错误: 需要 JSON 字符串数组");
+            }
+        } catch (err: any) {
+            console.error(err);
+            setError(`无法获取文件列表: ${err.message}. 请确保 server.py 已运行。`);
+        } finally {
+            setLoadingList(false);
+        }
+    }
   };
 
   useEffect(() => {
@@ -43,44 +73,65 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
       }
   }, [mode]);
 
+  // --- Fetch File Content ---
   const handleServerFileLoad = async (filename: string) => {
       setSelectedFile(filename);
       setLoading(true);
       setError(null);
 
-      try {
-          // ============================================================
-          // 真实部署时，请替换为如下代码:
-          // const response = await fetch(`/api/file?path=${serverPath}&name=${filename}`);
-          // const csvText = await response.text();
-          // ============================================================
-          
-          // --- 模拟生成 CSV 数据 (Mock Data Generator) ---
-          await new Promise(r => setTimeout(r, 800)); // Simulate network
-          const now = new Date();
-          let mockCsv = "time,real_power,forecast_1,forecast_2\n";
-          for(let i=0; i<96 * 30; i++) { // 30 days of 15min data
-             const t = new Date(now.getTime() - (96 * 30 - i) * 15 * 60000);
-             const timeStr = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
-             
-             // Generate random wave
-             const base = Math.sin(i / 20) * 50 + 100;
-             const real = base + (Math.random() - 0.5) * 10;
-             const fore1 = base + (Math.random() - 0.5) * 20;
-             const fore2 = base * 0.95 + (Math.random() - 0.5) * 5;
-             
-             mockCsv += `${timeStr},${real.toFixed(2)},${fore1.toFixed(2)},${fore2.toFixed(2)}\n`;
+      if (API_CONFIG.useMock) {
+          // --- Mock Data Generation ---
+          try {
+            await new Promise(r => setTimeout(r, 800)); 
+            const now = new Date();
+            let mockCsv = "time,real_power,forecast_1,forecast_2\n";
+            for(let i=0; i<96 * 30; i++) { 
+                const t = new Date(now.getTime() - (96 * 30 - i) * 15 * 60000);
+                const timeStr = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+                
+                // Generate random wave
+                const base = Math.sin(i / 20) * 50 + 100;
+                const real = base + (Math.random() - 0.5) * 10;
+                const fore1 = base + (Math.random() - 0.5) * 20;
+                const fore2 = base * 0.95 + (Math.random() - 0.5) * 5;
+                
+                mockCsv += `${timeStr},${real.toFixed(2)},${fore1.toFixed(2)},${fore2.toFixed(2)}\n`;
+            }
+            const { data, headers } = parseCSV(mockCsv);
+            onDataLoaded(data, headers);
+          } catch(e) {
+             setError("模拟数据生成失败"); 
+          } finally {
+             setLoading(false);
           }
-          // -----------------------------------------------------------
+      } else {
+          // --- Real API Call ---
+          try {
+              // Expected Backend: GET /api/file-content?path=...&filename=...
+              // 注意: 后端返回的是纯文本内容，而不是 JSON
+              const response = await fetch(`${API_CONFIG.baseUrl}/file-content?path=${encodeURIComponent(serverPath)}&filename=${encodeURIComponent(filename)}`);
+              
+              if (!response.ok) {
+                  const errorJson = await response.json().catch(() => ({}));
+                  throw new Error(errorJson.detail || response.statusText);
+              }
+              
+              // 关键: 后端有些时候可能返回 JSON string，有些时候是 Text，这里我们统一按 text 读取
+              let csvText = await response.text();
+              
+              // 如果后端不小心把内容包在 JSON 字符串里 (例如 FastAPI 默认行为)，尝试解析
+              if (csvText.startsWith('"') && csvText.endsWith('"')) {
+                 try { csvText = JSON.parse(csvText); } catch(e) {}
+              }
 
-          const { data, headers } = parseCSV(mockCsv);
-          onDataLoaded(data, headers);
-      } catch (err) {
-          console.error(err);
-          setError("无法加载服务器文件，请检查网络或文件格式。");
-          setSelectedFile(null);
-      } finally {
-          setLoading(false);
+              const { data, headers } = parseCSV(csvText);
+              onDataLoaded(data, headers);
+          } catch (err: any) {
+              console.error(err);
+              setError(`无法加载文件内容: ${err.message}`);
+          } finally {
+              setLoading(false);
+          }
       }
   };
 
@@ -111,7 +162,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
   // --- Shared CSV Parser ---
   const parseCSV = (csvText: string): { data: RawRow[], headers: string[] } => {
     const lines = csvText.trim().split('\n');
-    if (lines.length < 2) throw new Error("File too short");
+    if (lines.length < 2) throw new Error("文件内容过短");
 
     const headers = lines[0].split(',').map(h => h.trim());
     
@@ -122,7 +173,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
     });
 
     if (timeIdx === -1) {
-      throw new Error("Could not auto-detect a Time column.");
+      throw new Error("无法自动识别时间列 (需包含 time/timestamp/时间)");
     }
 
     const result: RawRow[] = [];
@@ -243,8 +294,10 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
                   <div className="max-h-60 overflow-y-auto bg-white">
                       {loadingList ? (
                           <div className="p-8 text-center text-slate-400 text-sm">加载文件列表中...</div>
+                      ) : error ? (
+                          <div className="p-8 text-center text-red-400 text-sm">{error}</div>
                       ) : fileList.length === 0 ? (
-                          <div className="p-8 text-center text-slate-400 text-sm">该目录下未找到 CSV 文件</div>
+                          <div className="p-8 text-center text-slate-400 text-sm">该目录下未找到 CSV 文件或 API 连接失败</div>
                       ) : (
                           <ul className="divide-y divide-slate-100">
                               {fileList.map((file) => (
@@ -271,12 +324,14 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
                   </div>
               </div>
               <p className="mt-3 text-xs text-slate-400">
-                  * 此功能需要后端 API 支持。当前为模拟数据模式，点击任意文件将生成测试数据。
+                  {API_CONFIG.useMock 
+                    ? "* 当前为演示(Mock)模式。"
+                    : `* 正连接至后端: ${API_CONFIG.baseUrl} (请确保 server.py 已运行)`}
               </p>
           </div>
       )}
       
-      {error && (
+      {error && !loadingList && (
         <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md flex items-center text-red-700 animate-fade-in">
           <AlertCircle className="w-5 h-5 mr-2" />
           {error}
