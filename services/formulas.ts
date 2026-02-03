@@ -1,4 +1,96 @@
 import { DataPoint, CalculationParams } from '../types';
+import { GoogleGenAI } from "@google/genai";
+
+// --- Constants & Storage Types ---
+
+export const ROW_TEMPLATES: Record<string, string> = {
+  'Shanxi': `# 变量说明: real(实测值), fore(预测均值), cap(容量)
+diff = real - fore
+weight = abs(diff) # 权重暂时存为中间变量，最后聚合时使用
+# 山西规则较复杂，通常建议使用完整脚本模式，但在原子模式下，
+# 我们可以计算单点的 (R-F)^2 * |R-F|
+result = (diff ** 2) * abs(diff)`,
+  
+  'Northeast': `# 变量说明: real(实测), fore_list(预测列表), cap(容量)
+import numpy as np
+
+# 1. 获取该时刻的预测均值 (fore_list 是该时刻的多家预测值列表)
+mean_fore = np.mean(fore_list)
+
+# 2. 判断死区 (实测和预测均值都小于 10% Cap)
+if real < cap * 0.1 and mean_fore < cap * 0.1:
+    result = 0.0
+else:
+    # 3. 计算归一化误差
+    if mean_fore == 0:
+        result = 0.0
+    else:
+        err = abs((mean_fore - real) / mean_fore)
+        result = min(err, 1.0) # 误差最大限制为 1
+
+# 结果 result 将被收集，最后取均值计算准确率`,
+
+  'General': `diff = abs(real - fore)
+result = diff ** 2  # 计算平方误差`
+};
+
+export interface SavedFormula {
+  rowLogic: string;
+  aggMethod: 'mean' | 'sum' | 'rmse' | 'custom';
+  timestamp: number;
+}
+
+const STORAGE_KEY = 'powersight_formulas_v1';
+
+// --- Storage Functions ---
+
+export const saveFormulaToStorage = (region: string, rowLogic: string, aggMethod: string) => {
+  try {
+    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    data[region] = { rowLogic, aggMethod, timestamp: Date.now() };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.error("Save formula failed", e);
+  }
+};
+
+export const loadFormulaFromStorage = (region: string): SavedFormula | null => {
+  try {
+    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    return data[region] || null;
+  } catch (e) {
+    return null;
+  }
+};
+
+export const clearFormulaFromStorage = (region: string) => {
+    try {
+    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    delete data[region];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.error("Clear formula failed", e);
+  }
+};
+
+export const getDefaultFormulaState = (region: string) => {
+    let rowLogic = ROW_TEMPLATES['General'];
+    let aggMethod: 'mean' | 'sum' | 'rmse' | 'custom' = 'rmse';
+
+    if (region === 'Northeast') {
+        rowLogic = ROW_TEMPLATES['Northeast'];
+        aggMethod = 'mean';
+    } else if (region === 'Shanxi') {
+        rowLogic = ROW_TEMPLATES['Shanxi'];
+        aggMethod = 'rmse';
+    } else {
+        // Northwest, South, East, Central default to General/RMSE for now
+        rowLogic = ROW_TEMPLATES['General'];
+        aggMethod = 'rmse';
+    }
+    return { rowLogic, aggMethod };
+};
+
 
 // --- Pyodide Setup ---
 
@@ -248,28 +340,9 @@ result = 0.0 # Initialize
 // --- Default Formula Source Codes (Python) ---
 
 export const getFormulaDefaultCode = (region: string): string => {
-  // Return the batch script format directly to allow "Script Mode" fallback if needed
-  // But generally we use the Atomic Builder now.
-  // We keep this for backward compat or if user switches to full script mode manually.
-  return generateBatchScript(
-      region === 'Shanxi' ? 
-          `diff = real - fore
-result = (diff ** 2) * abs(diff)` : 
-      region === 'Northeast' ?
-          `mean_fore = np.mean(fore_list)
-if real < cap * 0.1 and mean_fore < cap * 0.1:
-    result = 0.0
-else:
-    if mean_fore == 0:
-        result = 0.0
-    else:
-        err = abs((mean_fore - real) / mean_fore)
-        result = min(err, 1.0)` :
-      `diff = abs(real - fore)
-result = diff ** 2`,
-      region === 'Shanxi' ? 'rmse' : 'mean',
-      region
-  );
+  // Use the new helper to get default atomic logic, then generate full script
+  const { rowLogic, aggMethod } = getDefaultFormulaState(region);
+  return generateBatchScript(rowLogic, aggMethod, region);
 };
 
 /**
@@ -370,5 +443,61 @@ export const getFormulaInfo = (region: string) => {
         desc: '标准均方根误差计算。',
         formula: 'Accuracy = 1 - ( RMSE / Cap )'
       };
+  }
+};
+
+// --- NEW: Gemini AI Generation ---
+
+export const generateFormulaWithAI = async (prompt: string, region: string): Promise<string> => {
+  try {
+    // API Key must be in process.env.API_KEY
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+
+    const systemInstruction = `You are a Python coding assistant for a power plant accuracy analysis tool.
+Your goal is to translate natural language logic into a Python code snippet that calculates a specific metric for a single row of data.
+
+**Context Variables Available:**
+1. \`real\` (float): Actual power generation.
+2. \`fore\` (float): Forecast power generation (usually the average of multiple forecasts).
+3. \`fore_list\` (numpy array): Array of all individual forecast values for this timestamp.
+4. \`cap\` (float): Total capacity of the station.
+5. \`threshold\` (float): Threshold ratio (e.g. 0.03 for 3%).
+
+**Requirements:**
+- Output **ONLY** valid Python code. No markdown formatting, no explanations.
+- The code must calculate a value and assign it to the variable named \`result\`.
+- You can use \`numpy\` as \`np\`.
+- Use \`abs()\`, \`min()\`, \`max()\` as needed.
+- If the user description implies a dead band (exempt from calculation), usually \`result\` is set to 0.
+- For complex logic, you can use intermediate variables (e.g. \`cond1 = ...\`, \`val_a = ...\`), but the final calculated value must be assigned to \`result\`.
+- Region context: ${region} (This might imply specific rules like "Double Detailed Rules").
+
+**Example Input:**
+"If both real and fore are below 3% of cap, result is 0. Otherwise result is square difference."
+
+**Example Output:**
+if real < cap * 0.03 and fore < cap * 0.03:
+    result = 0
+else:
+    result = (real - fore) ** 2
+`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        systemInstruction: systemInstruction,
+        temperature: 0.2, // Low temperature for deterministic code
+      }
+    });
+
+    let code = response.text || "";
+    // Clean up code blocks if the model ignores instructions
+    code = code.replace(/```python/g, '').replace(/```/g, '').trim();
+    return code;
+
+  } catch (error) {
+    console.error("AI Generation Error:", error);
+    throw new Error("AI 生成失败，请检查 API Key 配置或网络连接。");
   }
 };
