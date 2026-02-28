@@ -65,7 +65,7 @@ const SummaryReport: React.FC<SummaryReportProps> = ({ results, stats, startDate
     <div className="bg-white rounded-lg shadow mt-8 border border-slate-200 overflow-hidden">
       <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center">
         <FileText className="w-5 h-5 text-blue-600 mr-2" />
-        <h3 className="text-lg font-bold text-slate-800">分析报告总结 (Summary Report)</h3>
+        <h3 className="text-lg font-bold text-slate-800">分析报告总结</h3>
       </div>
       
       <div className="p-6 space-y-6">

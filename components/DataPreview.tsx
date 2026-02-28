@@ -31,10 +31,10 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, realCol, foreCols, date
       <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
         <div className="flex items-center">
           <Table className="w-5 h-5 text-blue-600 mr-2" />
-          <h3 className="font-bold text-slate-800">标准数据预览 (Standard Data Preview - Top 10)</h3>
+          <h3 className="font-bold text-slate-800">标准数据预览 (前10行)</h3>
         </div>
         <span className="text-xs text-slate-500">
-            Previewing valid data range
+            预览有效数据范围
         </span>
       </div>
 
@@ -42,16 +42,16 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, realCol, foreCols, date
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-100">
             <tr>
-              <th className="px-4 py-3 text-left font-medium text-slate-600">Time</th>
+              <th className="px-4 py-3 text-left font-medium text-slate-600">时间</th>
               <th className="px-4 py-3 text-left font-medium text-slate-600">
                  实测 (Real) <span className="text-xs text-slate-400 font-normal block">{realCol}</span>
               </th>
               <th className="px-4 py-3 text-left font-medium text-slate-600">
-                 预测 (Forecast) <span className="text-xs text-slate-400 font-normal block">Avg of {foreCols.length} cols</span>
+                 预测 (Forecast) <span className="text-xs text-slate-400 font-normal block">{foreCols.length} 列均值</span>
               </th>
               {foreCols.length > 1 && (
                  <th className="px-4 py-3 text-left font-medium text-slate-400">
-                    Forecast Details
+                    预测详情
                  </th>
               )}
             </tr>
@@ -60,7 +60,7 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, realCol, foreCols, date
             {previewRows.length === 0 ? (
                 <tr>
                     <td colSpan={4} className="p-8 text-center text-slate-500">
-                        当前时间筛选范围内无数据 (No data in selected date range)
+                        当前时间筛选范围内无数据
                     </td>
                 </tr>
             ) : (

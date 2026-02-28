@@ -207,7 +207,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
       result.push(row);
     }
 
-    if (result.length === 0) throw new Error("No valid data rows found");
+    if (result.length === 0) throw new Error("未找到有效数据行");
 
     result.sort((a, b) => a.timestamp - b.timestamp);
     return { data: result, headers };
@@ -273,7 +273,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
                         <Folder className="w-4 h-4 mr-2 text-blue-500" />
                         服务器文件浏览
                      </h3>
-                     {useMock && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">MOCK MODE</span>}
+                     {useMock && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">演示模式</span>}
                   </div>
                   <button 
                     onClick={() => setShowConfig(!showConfig)}

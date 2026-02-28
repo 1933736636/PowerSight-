@@ -173,7 +173,7 @@ const AccuracyCharts: React.FC<AccuracyChartsProps> = ({ results, stats }) => {
           <div className="flex items-center justify-between mb-4">
              <h3 className="text-lg font-semibold text-slate-800 flex items-center">
                 <Activity className="w-5 h-5 mr-2 text-blue-500" />
-                总体准确率趋势 (Overall Trend)
+                总体准确率趋势
              </h3>
           </div>
           <div className="h-80">
@@ -293,7 +293,7 @@ const AccuracyCharts: React.FC<AccuracyChartsProps> = ({ results, stats }) => {
               <div className="mb-4 pb-2 border-b border-slate-100">
                   <h3 className="text-lg font-bold text-slate-800 flex items-center">
                       <Calendar className="w-5 h-5 mr-2 text-indigo-500" />
-                      月度准确率趋势图 (Monthly Trends)
+                      月度准确率趋势图
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">点击任意图表可放大查看详情</p>
               </div>
@@ -341,7 +341,7 @@ const AccuracyCharts: React.FC<AccuracyChartsProps> = ({ results, stats }) => {
               <div className="mb-4 pb-2 border-b border-slate-100">
                   <h3 className="text-lg font-bold text-slate-800 flex items-center">
                       <PieChartIcon className="w-5 h-5 mr-2 text-purple-500" />
-                      月度准确率分布图 (Monthly Distribution)
+                      月度准确率分布图
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
                       统计区间: 高≥{thresholds.high}%, 中≥{thresholds.medium}%
@@ -408,7 +408,7 @@ const AccuracyCharts: React.FC<AccuracyChartsProps> = ({ results, stats }) => {
 
       {/* 4. Power Comparison */}
       <div className="lg:col-span-3 bg-white p-6 rounded-lg shadow border border-slate-200">
-        <h3 className="text-lg font-semibold text-slate-800 mb-4">日均功率对比 (Daily Average Power MW)</h3>
+        <h3 className="text-lg font-semibold text-slate-800 mb-4">日均功率对比 (MW)</h3>
         <div className="h-64">
            <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={overallChartData}>

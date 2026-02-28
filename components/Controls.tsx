@@ -31,7 +31,7 @@ const Controls: React.FC<ControlsProps> = ({ region, setRegion, params, setParam
     <div className="bg-white rounded-lg shadow p-6 mb-6">
       <div className="flex items-center mb-4 pb-4 border-b border-slate-100">
         <Settings className="w-5 h-5 text-slate-500 mr-2" />
-        <h2 className="text-lg font-bold text-slate-800">计算参数配置 (Configuration)</h2>
+        <h2 className="text-lg font-bold text-slate-800">计算参数配置</h2>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -39,7 +39,7 @@ const Controls: React.FC<ControlsProps> = ({ region, setRegion, params, setParam
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-2 flex items-center">
             <MapPin className="w-4 h-4 mr-1" />
-            考核区域 (Region)
+            考核区域
           </label>
           <select 
             value={region} 
@@ -59,7 +59,7 @@ const Controls: React.FC<ControlsProps> = ({ region, setRegion, params, setParam
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-2 flex items-center">
             <Zap className="w-4 h-4 mr-1" />
-            场站装机容量 (Capacity MW)
+            场站装机容量 (MW)
           </label>
           <input 
             type="number" 
@@ -72,7 +72,7 @@ const Controls: React.FC<ControlsProps> = ({ region, setRegion, params, setParam
         {/* Threshold Input - Conditional */}
         <div className={showThreshold ? 'opacity-100' : 'opacity-40 pointer-events-none grayscale'}>
           <label className="block text-sm font-medium text-slate-700 mb-2">
-            考核死区阈值 (Threshold Ratio)
+            考核死区阈值 (比例)
           </label>
           <div className="flex items-center space-x-2">
             <input 

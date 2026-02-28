@@ -60,7 +60,7 @@ const DataTable: React.FC<DataTableProps> = ({ results }) => {
   return (
     <div className="bg-white shadow rounded-lg overflow-hidden">
       <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-        <h3 className="font-semibold text-slate-800">详细数据 (Detailed Data)</h3>
+        <h3 className="font-semibold text-slate-800">详细数据</h3>
         <button 
           onClick={exportCSV}
           className="flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition"
@@ -77,7 +77,7 @@ const DataTable: React.FC<DataTableProps> = ({ results }) => {
                 <div className="flex items-center">日期 <ArrowUpDown className="w-3 h-3 ml-1" /></div>
               </th>
               <th onClick={() => requestSort('accuracy')} className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100">
-                 <div className="flex items-center">准确率 (Accuracy) <ArrowUpDown className="w-3 h-3 ml-1" /></div>
+                 <div className="flex items-center">准确率 <ArrowUpDown className="w-3 h-3 ml-1" /></div>
               </th>
               <th onClick={() => requestSort('rmse')} className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100">
                 RMSE

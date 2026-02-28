@@ -173,7 +173,7 @@ const App: React.FC = () => {
     }
 
     if (activeData.length === 0) {
-      alert("No data found in the selected date range.");
+      alert("所选日期范围内未找到数据。");
       setIsCalculating(false);
       return;
     }
@@ -418,7 +418,7 @@ const App: React.FC = () => {
                          <span className="ml-2 text-xs text-slate-400">(List)</span>
                       </div>
                       <div className="flex items-center bg-white px-3 py-2 rounded border border-indigo-100 shadow-sm flex-1 w-full md:w-auto">
-                         <span className="text-slate-500 mr-2">CSV 列 [{foreCols.length > 1 ? 'Multiple' : foreCols[0]}]</span>
+                         <span className="text-slate-500 mr-2">CSV 列 [{foreCols.length > 1 ? '多列' : foreCols[0]}]</span>
                          <ArrowRightLeft className="w-3 h-3 text-indigo-400 mx-2" />
                          <span className="font-mono font-bold text-green-600 bg-green-50 px-1 rounded">fore</span>
                          <span className="ml-2 text-xs text-slate-400">(List)</span>
@@ -476,7 +476,7 @@ const App: React.FC = () => {
                         {isCalculating ? (
                           <>
                             <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                            计算全量数据 (Python Engine)...
+                            正在计算 (Python 引擎)...
                           </>
                         ) : (
                           <>

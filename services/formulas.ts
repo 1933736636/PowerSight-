@@ -105,8 +105,15 @@ declare global {
 export const initPyodide = async () => {
   if (pyodideInstance) return pyodideInstance;
   
+  // Wait for loadPyodide to be available (max 10 seconds)
+  let attempts = 0;
+  while (typeof window.loadPyodide !== 'function' && attempts < 20) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    attempts++;
+  }
+
   if (typeof window.loadPyodide !== 'function') {
-    throw new Error('Pyodide script not loaded');
+    throw new Error('Pyodide 脚本加载失败，请检查网络连接或刷新页面重试。');
   }
 
   // Initialize Pyodide
